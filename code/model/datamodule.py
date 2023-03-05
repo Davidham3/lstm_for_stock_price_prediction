@@ -73,6 +73,26 @@ class MinMax:
         return (x - self.data_min_) / (self.data_max_ - self.data_min_)
 
 
+def construct_dataset(path: str, num_time_steps: int, split_size: float = 0.2):
+    scaler = MinMax()
+    df = load_dataset(path)
+
+    train, val, test = data_split(df, split_size=split_size)
+    train_norm = scaler.fit_transform(train)
+    val_norm = scaler.transform(val)
+    test_norm = scaler.transform(test)
+
+    train_x, train_y = DatasetCreation(train_norm, time_steps=num_time_steps)
+    val_x, val_y = DatasetCreation(val_norm, time_steps=num_time_steps)
+    test_x, _, index_of_y = DatasetCreation(
+        test_norm, time_steps=num_time_steps, return_index_of_y=True
+    )
+    test_y_true = test.iloc[index_of_y]["Close"]
+    train_y_min = scaler.data_min_["Close"]
+    train_y_max = scaler.data_max_["Close"]
+    return train_x, train_y, val_x, val_y, test_x, test_y_true, train_y_min, train_y_max
+
+
 class TSDataModule(pl.LightningDataModule):
     def __init__(
         self,
@@ -88,29 +108,19 @@ class TSDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.split_size = split_size
         self.num_time_steps = num_time_steps
-        self.scaler = MinMax()
         self.num_cpus = num_cpus
         self.shuffle = shuffle
 
-    def setup(self, stage: str):
-        df = load_dataset(self.path)
-        train, val, test = data_split(df, split_size=self.split_size)
-        train_norm = self.scaler.fit_transform(train)
-        val_norm = self.scaler.transform(val)
-        test_norm = self.scaler.transform(test)
-
-        self.train_x, self.train_y = DatasetCreation(
-            train_norm, time_steps=self.num_time_steps
-        )
-        self.val_x, self.val_y = DatasetCreation(
-            val_norm, time_steps=self.num_time_steps
-        )
-        self.test_x, _, index_of_y = DatasetCreation(
-            test_norm, time_steps=self.num_time_steps, return_index_of_y=True
-        )
-        self.test_y_true = test.iloc[index_of_y]["Close"]
-        self.train_y_min = self.scaler.data_min_["Close"]
-        self.train_y_max = self.scaler.data_max_["Close"]
+        (
+            self.train_x,
+            self.train_y,
+            self.val_x,
+            self.val_y,
+            self.test_x,
+            self.test_y_true,
+            self.train_y_min,
+            self.train_y_max,
+        ) = construct_dataset(self.path, self.num_time_steps, self.split_size)
 
     def train_dataloader(self):
         return DataLoader(
