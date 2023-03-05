@@ -134,8 +134,8 @@ class LitLSTM(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         pred, y = zip(*outputs)
-        pred = np.concatenate([i.numpy() for i in pred], axis=0)
-        y = np.concatenate([i.numpy() for i in y], axis=0)
+        pred = np.concatenate([i.cpu().numpy() for i in pred], axis=0)
+        y = np.concatenate([i.cpu().numpy() for i in y], axis=0)
         stats = calculate_scores(y, pred)
         for key, value in stats.items():
             self.log(key, value)
